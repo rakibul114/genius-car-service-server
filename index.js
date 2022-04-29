@@ -15,10 +15,17 @@ app.use(express.json());
 function verifyJWT(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-        return res.status(401);
+        return res.status(401).send({ message: 'Unauthorized access' });
     }
-    console.log('Inside verifyJWT', authHeader);
-    next();
+    const token = authHeader.split(' ')[1];
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+            return res.status(403).send({ message: 'Forbidden access' });
+        }
+        console.log('decoded', decoded);
+        req.decoded = decoded;
+        next();
+    });   
 }
 
 // for connecting to MongoDB
@@ -79,13 +86,19 @@ async function run() {
         });
 
         // Order collection API
-        // GET API
-        app.get('/order', verifyJWT, async (req, res) => {           
+        // GET API        
+        app.get('/order', verifyJWT, async (req, res) => {
+            const decodedEmail = req.decoded.email;
             const email = req.query.email;
-            const query = {email: email};
-            const cursor = orderCollection.find(query);
-            const orders = await cursor.toArray();
-            res.send(orders);
+            if (email === decodedEmail) {
+                const query = { email: email };
+                const cursor = orderCollection.find(query);
+                const orders = await cursor.toArray();
+                res.send(orders);
+            }
+            else {
+                res.status(403).send({ message: 'Forbidden access' });
+            }
         });
 
 
